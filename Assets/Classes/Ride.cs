@@ -1,66 +1,86 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Ride
 {
-    public const int MAX_CAPACITY = 20;
-    public const int MAX_RIDE_LENGTH = 300;
-    public const int MIN_RIDE_LENGTH = 60;
 
-    private int current = 0;
-    public int OnRide {get {return (current > MAX_CAPACITY)? MAX_CAPACITY : current;}}
-    public int OutsideRide { get {return (current > MAX_CAPACITY)? current - MAX_CAPACITY : 0;}}
+    public readonly int maxCapacity;
+    public readonly int maxRideTime;
+    public readonly int minRideTime;
+    public readonly Line ridesLine;
+    public int LinesLength
+    {
+        get {return ridesLine.Members.Length;}
+    }
 
+    public Ride(int maxCapacity, int maxRideTime, int minRideTime, Line ridesLine) 
+    {
+        this.maxCapacity = maxCapacity;
+        this.maxRideTime = maxRideTime;
+        this.minRideTime = minRideTime;
+        this.ridesLine = ridesLine;
+    }
+    public Ride() 
+    {
+        this.maxCapacity = 20;
+        this.maxRideTime = 300;
+        this.minRideTime = 60;
+        this.ridesLine = new Line();
+    }
+
+    private List<Member> current = new List<Member>();
+    public int onRide { get{ return current.Count;}}
     private bool running = false;
     public bool Running {get {return running;}}
     private bool lockedGates = true;
     public bool LockedGates {get {return lockedGates;}}
 
+    private int lastTask = Task.NONE;
+
+
     public int StartRide()
     {
+        if (lastTask != Task.LOCK_GATES) {return Error.WRONG_NEXT_TASK;}
         running = true;
-        return RideError.NONE;
+        lastTask = Task.START_RIDE;
+        return Error.NONE;
     }
 
     public int EndRide()
     {
+        if (lastTask != Task.START_RIDE) {return Error.WRONG_NEXT_TASK;}
+
         running = false;
-        return RideError.NONE;
+        lastTask = Task.END_RIDE;
+        return Error.NONE;
     }
 
-    public int LockRide()
-    {
+    public int LockGates()
+    {   
+        if (lastTask != Task.UNLOCK_GATES) {return Error.WRONG_NEXT_TASK;}
         lockedGates = true;
-        return RideError.NONE;
-    }
-
-    public int UnlockRide()
-    {
-        lockedGates = false;
-        return RideError.NONE;
-    }
-
-    public int AddRider()
-    {
-        if (lockedGates) {return RideError.ADD_WITH_LOCKED_GATES;}
-        
-        current++;
-        return RideError.NONE;
-        
-
+        lastTask = Task.LOCK_GATES;
+        return Error.NONE;
     }
 
     public int UnlockGates()
     {
+        if (lastTask != Task.NONE && lastTask != Task.END_RIDE) {return Error.WRONG_NEXT_TASK;}
         lockedGates = false;
-        return RideError.NONE;
+        current.Clear();
+        lastTask = Task.UNLOCK_GATES;
+        return Error.NONE;
     }
 
-    public int LockGates()
+    public int AddRider()
     {
-        lockedGates = true;
-        return RideError.NONE;
+        if (lastTask != Task.UNLOCK_GATES) {return Error.WRONG_NEXT_TASK;}
+        (int error, Member m) = ridesLine.RemoveMember();
+        if (m != null) {current.Add(m);}
+        if(onRide > maxCapacity) {return Error.OVERFLOWING_RIDE;}
+        return error;
     }
 }
